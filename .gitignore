@@ -1,0 +1,13 @@
+# runtime artifacts
+.vllm.log
+.vllm.pid
+.cache/
+
+# weights (downloaded at runtime)
+models/
+*.safetensors
+*.gguf
+
+# python
+__pycache__/
+*.pyc

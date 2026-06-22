@@ -1,0 +1,47 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Gemma 4 26B-A4B — DGX Spark scaling</title></head>
+<body style="margin:0;background:#0b0d11;display:flex;justify-content:center;padding:40px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+<div class="card">
+  <div class="hd">
+    <div class="t">Gemma 4 26B-A4B · NVFP4 + DFlash</div>
+    <div class="s">NVIDIA DGX Spark (GB10) · 256K context · 512 output tokens per request (T=0)</div>
+  </div>
+  <div class="sec">Scaling efficiency</div>
+  <div class="tbl">
+    <div class="r rh"><span>sessions</span><span>cumulative tok/s</span><span>per-session</span><span>scaling</span><span>efficiency</span></div>
+    <div class="r"><span>1</span><span class="b">68.1</span><span>68.1</span><span>—</span><span class="v base">baseline</span></div>
+    <div class="r"><span>2</span><span class="b">129.3</span><span>64.7</span><span>1.90×</span><span class="v good">95.0%</span></div>
+    <div class="r"><span>4</span><span class="b">246.0</span><span>61.5</span><span>3.61×</span><span class="v good">90.2%</span></div>
+    <div class="r"><span>8</span><span class="b">403.0</span><span>50.5</span><span>5.92×</span><span class="v ok">74.0%</span></div>
+  </div>
+  <div class="call"><b>68 tok/s single → 403 tok/s at 8 concurrent.</b> Near-linear to 4 sessions; DFlash's speculative gain tapers as the GPU fills. <b>Full 256K verified.</b> A realistic first request (~39k tokens) prefills in ~10s; prefix caching makes follow-ups near-instant. Only a cold 200k+ bulk paste hits the multi-minute worst case.</div>
+  <div class="sec">Real-world task latency — short structured output (the common case)</div>
+  <div class="rl">
+    <div class="rlrow"><span>Parse 6k-token Excel → JSON</span><span class="b">1.4 s</span></div>
+    <div class="rlrow"><span>Excel → single value</span><span class="b">1.3 s</span></div>
+    <div class="rlrow"><span>Image → label (vision)</span><span class="b">1.0 s</span></div>
+  </div>
+  <div class="foot"><b>Real tasks ~1 s · 403 tok/s aggregate at 8 concurrent · full 256K verified.</b> One desk-side box, single GPU.</div>
+</div>
+<style>
+.card{max-width:600px;background:#13161c;color:#e7e9ee;border-radius:14px;padding:22px 24px;font-size:14px;border:1px solid #262b35}
+.hd .t{font-size:18px;font-weight:500}.hd .s{font-size:13px;color:#9aa3b2;margin-top:4px}
+.sec{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#9aa3b2;margin:16px 0 8px}
+.tbl{display:flex;flex-direction:column;gap:2px}
+.r{display:grid;grid-template-columns:1fr 1.4fr 1fr .8fr 1fr;gap:8px;padding:7px 10px;border-radius:7px;align-items:center}
+.r:not(.rh):nth-child(even){background:#1a1e26}
+.rh{font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:#7b8494}
+.b{font-weight:500;color:#7fb2ff}.v{font-weight:500}
+.v.base{color:#7b8494}.v.good{color:#5dcaa5}.v.ok{color:#e0b341}
+.call{margin:14px 0;padding:11px 13px;background:#1a1e26;border-radius:8px;font-size:13.5px;color:#c8cedb;line-height:1.5}.call b{color:#fff}
+.bars{display:flex;flex-direction:column;gap:7px}
+.bl{display:flex;align-items:center;gap:10px}.lab{width:52px;font-size:12px;color:#9aa3b2;flex:none}
+.tot{width:72px;text-align:right;font-size:12px;color:#9aa3b2;flex:none}
+.rl{display:flex;flex-direction:column;gap:4px}
+.rlrow{display:flex;justify-content:space-between;padding:7px 11px;background:#1a1e26;border-radius:7px;font-size:13.5px}
+.note2{font-size:12px;color:#9aa3b2;margin:8px 0 2px;line-height:1.5}
+.track{flex:1;background:#1a1e26;border-radius:6px;overflow:hidden}
+.bar{background:#378add;color:#fff;font-size:12px;font-weight:500;padding:5px 9px;border-radius:6px;text-align:right;white-space:nowrap}
+.foot{margin-top:14px;font-size:13px;color:#c8cedb}.foot b{color:#fff}
+</style>
+</body></html>

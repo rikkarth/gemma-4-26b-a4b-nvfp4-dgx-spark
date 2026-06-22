@@ -1,0 +1,9 @@
+{
+  "test": "real-world task latency — moderate input, short structured output",
+  "tasks": [
+    {"name": "excel_csv_to_json", "input_tokens": 5998, "output_tokens": 23, "latency_s": 1.43, "output": "{\"total_rows\": 399, \"sum_qty\": 27830}"},
+    {"name": "excel_csv_single_value", "input_tokens": 5988, "output_tokens": 4, "latency_s": 1.26, "output": "199"},
+    {"name": "vision_image_to_label", "input_tokens": 293, "output_tokens": 2, "latency_s": 1.01, "output": "Cats"}
+  ],
+  "takeaway": "Extraction/parsing tasks return a few tokens, so latency is ~1s even with a 6k-token input. The 512-token scaling bench is a throughput stress test, not representative of short-output workloads."
+}

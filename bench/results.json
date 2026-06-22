@@ -1,0 +1,38 @@
+[
+  {
+    "concurrency": 1,
+    "wall_s": 7.52,
+    "total_tokens": 512,
+    "cumulative_tok_s": 68.06,
+    "per_session_avg_tok_s": 68.07,
+    "scaling_factor": 1.0,
+    "efficiency_pct": 100.0
+  },
+  {
+    "concurrency": 2,
+    "wall_s": 7.92,
+    "total_tokens": 1024,
+    "cumulative_tok_s": 129.34,
+    "per_session_avg_tok_s": 64.68,
+    "scaling_factor": 1.9,
+    "efficiency_pct": 95.0
+  },
+  {
+    "concurrency": 4,
+    "wall_s": 8.33,
+    "total_tokens": 2048,
+    "cumulative_tok_s": 245.96,
+    "per_session_avg_tok_s": 61.51,
+    "scaling_factor": 3.61,
+    "efficiency_pct": 90.2
+  },
+  {
+    "concurrency": 8,
+    "wall_s": 10.16,
+    "total_tokens": 4096,
+    "cumulative_tok_s": 402.99,
+    "per_session_avg_tok_s": 50.54,
+    "scaling_factor": 5.92,
+    "efficiency_pct": 74.0
+  }
+]

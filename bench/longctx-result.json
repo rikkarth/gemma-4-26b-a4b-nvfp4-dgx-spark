@@ -1,0 +1,9 @@
+{
+  "test": "needle-in-haystack at depth, max_model_len=262144 (all retrieved correctly)",
+  "prefill_by_scenario": {
+    "typical_first_request_cold": {"approx_tokens": 38814, "ttft_s": 10.4, "note": "realistic harness baseline (system prompt + tools + history)"},
+    "cold_oneshot_200k_no_cache": {"approx_tokens": 229539, "ttft_s": 282.8, "note": "worst case — fresh 200k+ blob in one request"},
+    "prefix_cache_hit": {"approx_tokens": 202539, "ttft_s": 0.5, "note": "same context re-queried — KV reused"}
+  },
+  "takeaway": "Realistic first request (~39k tok) prefills in ~10s. With --enable-prefix-caching, context that grows incrementally is cached: each turn prefills only new tokens, re-reads ~instant. The multi-minute figure is a cold 200k+ one-shot paste (rare). Sliding-window attention keeps long-context KV memory cheap; cost is prefill compute."
+}
