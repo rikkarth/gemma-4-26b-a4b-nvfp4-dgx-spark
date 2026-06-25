@@ -57,11 +57,12 @@ docker run -d \
     --quantization compressed-tensors \
     --attention-backend triton_attn \
     --max-model-len 262144 \
-    --max-num-seqs 64 --max-num-batched-tokens 32768 \
+    --max-num-seqs 64 --max-num-batched-tokens 16384 \
+    --async-scheduling \
     --gpu-memory-utilization 0.80 \
     --enable-chunked-prefill --enable-prefix-caching --trust-remote-code \
     --enable-auto-tool-choice --tool-call-parser gemma4 --reasoning-parser gemma4 \
-    --speculative-config "{\"method\":\"dflash\",\"model\":\"${DRAFTER_ID}\",\"num_speculative_tokens\":10,\"attention_backend\":\"flash_attn\"}" \
+    --speculative-config "{\"method\":\"dflash\",\"model\":\"${DRAFTER_ID}\",\"num_speculative_tokens\":5,\"attention_backend\":\"flash_attn\"}" \
   >/dev/null
 
 container_id="$(docker inspect -f '{{.Id}}' "${CONTAINER_NAME}")"

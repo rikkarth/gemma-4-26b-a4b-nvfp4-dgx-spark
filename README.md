@@ -9,7 +9,7 @@ A production-ready vLLM deployment wrapper for **[Gemma 4 26B-A4B](https://huggi
 
 Bundles a ready-to-run Docker launch, the chat template, start/stop scripts, and a reproducible concurrency-scaling benchmark — spin up a fully OpenAI-compatible server in minutes.
 
-> **TL;DR — 68 tok/s single stream, 406 tok/s at 8 concurrent sessions, on one desk-side box.**
+> **TL;DR — 65.6 tok/s single stream (p50 of 16, mean 70.3), 406 tok/s at 8 concurrent sessions, on one desk-side box.**
 
 ---
 
@@ -19,7 +19,7 @@ Bundles a ready-to-run Docker launch, the chat template, start/stop scripts, and
 |---|---|
 | **Model** | `AEON-7/Gemma-4-26B-A4B-it-Uncensored-NVFP4` — NVFP4 MoE (26B total / ~3.8B active, 128 experts top-8 + 1 shared) |
 | **Inference Engine** | vLLM `0.23.0` sm_121a build (`ghcr.io/aeon-7/aeon-vllm-ultimate`) |
-| **Speculative Decoding** | **DFlash**, 10 speculative tokens, `flash_attn` drafter backend |
+| **Speculative Decoding** | **DFlash**, 5 speculative tokens, `flash_attn` drafter backend |
 | **Quantization** | NVFP4 — MLP + MoE experts 4-bit; attention + vision tower BF16 |
 | **Context Window** | **262,144 tokens (full native 256K)** |
 | **OpenAI-Compatible API** | `/v1/chat/completions`, `/v1/completions`, `/v1/models` |
@@ -33,6 +33,23 @@ Bundles a ready-to-run Docker launch, the chat template, start/stop scripts, and
 ---
 
 ## 📊 Performance
+
+> **v1 (2026-06-24): +10% decode speedup over the pre-v1 baseline.** Validated on a 16-iteration,
+> 3-warmup bench (mixed prompts, 256 max-tok, T=0, direct to `localhost:8000`). The win came
+> from tuning the DFlash drafter's `num_speculative_tokens` from 10 to 5; the full sweep (3, 5,
+> 10 + several `--max-num-batched-tokens` values + `--async-scheduling`) is in the lab
+> (`lab/2026-06-24/`) and the rejected experiments are in [Troubleshooting](#-troubleshooting).
+
+**v1 headline metrics (c=1, 256 max-tok, T=0, mixed prompts, 3 warmup × 16 iter):**
+
+| Metric | Pre-v1 | v1 | Delta |
+|---|---:|---:|---:|
+| decode tok/s **p50** | 59.7 | **65.6** | **+9.9%** |
+| decode tok/s mean | 68.2 | 70.3 | +3.1% |
+| decode tok/s min (floor) | 46.9 | 54.0 | **+15.1%** |
+| decode tok/s stddev | 25.1 | 18.6 | **−26%** (tighter) |
+| TTFT p50 (ms) | 115 | 107 | −7% |
+| TPOT p50 (ms) | 16.33 | 14.90 | **−8.8%** |
 
 ### Real-world task latency
 
@@ -58,15 +75,26 @@ visual in [`assets/report-card.html`](assets/report-card.html).
 
 | Sessions | Cumulative gen tok/s | Per-session avg | Scaling factor | Efficiency |
 |---:|---:|---:|---:|---:|
-| 1 | 68.1 | 68.1 | — | baseline |
+| 1 | 65.6 | 65.6 | — | baseline |
 | 2 | 129.3 | 64.7 | 1.90× | 95.0% |
 | 4 | 246.0 | 61.5 | 3.61× | 90.2% |
 | 8 | 403.0 | 50.5 | 5.92× | 74.0% |
 
+*c=8 number re-bench pending — last measured 2026-06-21 with pre-v1 settings.*
+
 Near-linear to 4 sessions (90% efficiency); DFlash's speculative gain tapers as the GPU fills and
 the box trends toward the GB10 bandwidth bound (273 GB/s) — so 8 concurrent users still get ~50
 tok/s each, 403 tok/s aggregate. (These are 512-token generations to measure steady throughput;
-real short-output tasks finish in ~1 s — see above.)
+real short-output tasks finish in ~1 s — see above.) c=2/4/8 are pre-v1 (last measured
+2026-06-21); a c=2/4/8 re-bench with the v1 settings is a known TODO.
+
+**What changed (pre-v1 → v1):**
+
+| Setting | Pre-v1 | v1 | Why |
+|---|---|---|---|
+| `num_speculative_tokens` | 10 | **5** | drafter forward-pass waste on positions 5–9; n=5 lifts the floor by 15% and tightens variance without losing the high-acceptance ceiling (n=3 was tested and rejected — kills ceiling by 12.5%) |
+| `--max-num-batched-tokens` | 32768 | **16384** | equivalent throughput, eliminates vLLM's informational 7936 chunked-prefill warning (8192 was tested and rejected — chunked-prefill clamp regresses p50 by ~3.4%) |
+| `--async-scheduling` | (implicit default) | **explicit** | no-op on vLLM 0.23+ (already default), made explicit for clarity |
 
 ### Long context (full 256K)
 
@@ -175,12 +203,14 @@ All options live in [`start.sh`](start.sh). Key variables: `MODEL_ID`, `DRAFTER_
 |---|---|---|
 | `--quantization` | `compressed-tensors` | NVFP4 weights |
 | `--attention-backend` | `triton_attn` | Gemma 4's heterogeneous head dims need Triton |
-| `--speculative-config` | DFlash, 10 tokens, `flash_attn` | drafter **must** use `flash_attn` (`flex_attention` crashes) |
+| `--speculative-config` | DFlash, 5 tokens, `flash_attn` (drafter: `z-lab/gemma-4-26B-A4B-it-DFlash`) | drafter **must** use `flash_attn` (`flex_attention` crashes); `num_speculative_tokens=5` (was 10) — +9.9% p50, +3.1% mean, +15.1% min (16-iter clean bench, 2026-06-24) |
 | `VLLM_NVFP4_GEMM_BACKEND` | `flashinfer-cutlass` | valid output on GB10 (no native FP4 cores) |
 | `VLLM_USE_FLASHINFER_MOE_FP4` | `0` | required with the cutlass GEMM path |
 | `--gpu-memory-utilization` | `0.80` | dedicated box → generous KV cache |
 | `--max-model-len` | `262144` | full native 256K context |
 | `--max-num-seqs` | `64` | concurrent sequence cap |
+| `--max-num-batched-tokens` | `16384` (was `32768`) | equivalent throughput; eliminates the vLLM 7936 chunked-prefill warning |
+| `--async-scheduling` | (explicit flag) | no-op in vLLM 0.23+ (already default); documented for clarity |
 | `--enable-prefix-caching` | — | KV reuse across shared prefixes |
 | `--tool-call-parser` / `--reasoning-parser` | `gemma4` | native tool + thinking support |
 
@@ -239,6 +269,14 @@ gemma-4-26b-a4b-nvfp4-dgx-spark/
 | Drafter crash on first request | drafter `attention_backend` must be `flash_attn`, not `flex_attention` |
 | OOM | lower `--gpu-memory-utilization` or `--max-num-seqs` |
 | First request slow (~50 s) | one-time compile; `start.sh` already warms it — add a keep-warm cron for reboots |
+
+### Rejected speculative / batch configurations (2026-06-24 sweep)
+
+The following configurations were tested against the v1 settings and rejected:
+
+- `num_speculative_tokens = 3` — no p50 win, but kills the high-acceptance ceiling by 12.5% (max 113.2 → 99.1 tok/s). The drafter can't produce more than 3 accepted tokens per forward pass, which trims the upside on prompt classes that DFlash already accepts well.
+- `--max-num-batched-tokens 8192` — chunked-prefill clamp at 7936 (= 8192 − speculative budget), regresses p50 by ~3.4%. Use 16384 or higher to disengage the clamp.
+- `--async-scheduling` as an explicit override — no-op on vLLM 0.23+ (already default). Documented for clarity, no perf effect.
 
 ---
 
