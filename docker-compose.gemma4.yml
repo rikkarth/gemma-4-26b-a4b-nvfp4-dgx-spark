@@ -1,0 +1,74 @@
+# docker-compose.gemma4.yml
+#
+# Single-service vLLM deployment for Gemma 4 26B-A4B (NVFP4 + DFlash)
+# on NVIDIA DGX Spark (GB10, sm_121). Used by ./setup.sh on a fresh box.
+# Mirrors the `docker run` flags in ./start.sh — keep them in sync.
+#
+# Image is pinned by digest (sm_121 / GB10 / RTX 50-series only).
+# Do NOT switch to :latest — the aeon vLLM build is hardware-specific.
+#
+# Quick reference (override in `.env` next to this file):
+#   HF_TOKEN         HuggingFace token (the model + drafter are gated)
+#   HF_HOME          host path to the HF cache   (default: ./.cache/huggingface)
+#   VLLM_CACHE       host path to the vLLM compile cache (default: ./.cache/vllm)
+#   CHAT_TEMPLATE    host path to chat_template.jinja  (default: ./chat_template.jinja)
+#   PORT             vLLM listen port              (default: 8000)
+
+name: gemma4
+
+services:
+  vllm:
+    image: ghcr.io/aeon-7/aeon-vllm-ultimate@sha256:be9e05a11da6e72607ab6f3e960993b253b673af0727005122a3266129a518e3
+    container_name: ${CONTAINER_NAME:-gemma4-vllm}
+    network_mode: host
+    ipc: host
+    restart: always
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      HF_TOKEN: ${HF_TOKEN:-}
+      HF_HOME: /root/.cache/huggingface
+      VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+      TORCH_MATMUL_PRECISION: high
+      PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
+      VLLM_USE_FLASHINFER_MOE_FP4: "0"
+      VLLM_TEST_FORCE_FP8_MARLIN: "0"
+      VLLM_NVFP4_GEMM_BACKEND: flashinfer-cutlass
+      VLLM_USE_FLASHINFER_SAMPLER: "1"
+    volumes:
+      - ${HF_HOME:-./.cache/huggingface}:/root/.cache/huggingface
+      - ${VLLM_CACHE:-./.cache/vllm}:/root/.cache/vllm
+      - ${CHAT_TEMPLATE:-./chat_template.jinja}:/workspace/chat_template.jinja:ro
+    entrypoint: [vllm]
+    command:
+      - serve
+      - AEON-7/Gemma-4-26B-A4B-it-Uncensored-NVFP4
+      - --host=0.0.0.0
+      - --port=${PORT:-8000}
+      - --tensor-parallel-size=1
+      - --dtype=auto
+      - --quantization=compressed-tensors
+      - --attention-backend=triton_attn
+      - --max-model-len=262144
+      - --max-num-seqs=64
+      # v1 setting: 16384 (was 32768). Removes the vLLM 7936 chunked-prefill clamp
+      # warning, equivalent throughput (see README "Rejected experiments").
+      - --max-num-batched-tokens=16384
+      # v1 setting: explicit (no-op on vLLM 0.23+, documented for clarity).
+      - --async-scheduling
+      - --gpu-memory-utilization=0.80
+      - --enable-chunked-prefill
+      - --enable-prefix-caching
+      - --trust-remote-code
+      - --enable-auto-tool-choice
+      - --tool-call-parser=gemma4
+      - --reasoning-parser=gemma4
+      # v1 setting: num_speculative_tokens=5 (was 10). DFlash drafter MUST use
+      # flash_attn — flex_attention crashes this image. See README.
+      - >-
+        --speculative-config={"method":"dflash","model":"z-lab/gemma-4-26B-A4B-it-DFlash","num_speculative_tokens":5,"attention_backend":"flash_attn"}
