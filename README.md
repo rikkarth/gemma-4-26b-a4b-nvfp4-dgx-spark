@@ -48,6 +48,8 @@ Bundles a ready-to-run Docker launch, the chat template, start/stop scripts, and
 | decode tok/s mean | 68.2 | 70.3 | +3.1% |
 | decode tok/s min (floor) | 46.9 | 54.0 | **+15.1%** |
 | decode tok/s stddev | 25.1 | 18.6 | **−26%** (tighter) |
+| decode tok/s p90 (ceiling) | 115.0 | 109.4 | −4.9% (still **100+ tok/s**) |
+| decode tok/s **max (ceiling)** | 122.1 | **113.2** | −7.3% (still **100+ tok/s**) |
 | TTFT p50 (ms) | 115 | 107 | −7% |
 | TPOT p50 (ms) | 16.33 | 14.90 | **−8.8%** |
 
